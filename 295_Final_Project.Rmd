@@ -1,0 +1,453 @@
+---
+title: "295 Data Wrangling Final Project"
+author: "Alexander Galvan"
+date: "2025-05-09"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+## Introduction
+
+  In the recent months (as of May 2025), the US stock market has seen substantial sell offs in response to Donald Trump's escalating trade tariffs and rising uncertainty in the oval office. In this period we've also seen US Bond Yields spike alongside a watchful Federal Reserve. With that in mind, we might look to previous events and Fed actions to possibly understand what might lie ahead. The goal of this R notebook is to collect and display data that showcase these macro components. My only intention is to convey this data using conventional R tools (tidyverse and ggplot), and not delve too deeply into the topics of inflation, yields, or stocks. I'll briefly discuss the methodology used in the data wrangling and try to relate the data to the larger economic landscape. We'll examine the Federal Reserve's dual mandate: keeping unemployment and inflation low (~2-3%), as well as Covid-19 and the Ukraine Russia conflict. I'll rely on data from the Bureau of Labor Statistics, various government websites, and 3rd party market sites.
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(tidyverse)
+library(rvest)
+library(blsAPI) #install_github("mikeasilva/blsAPI")
+library(rjson)
+library(gganimate)
+library(viridis)
+source('bls_api_key.R')
+
+#Fed Funds rates
+fed_funds <- read_csv('FEDFUNDS.csv')
+
+#Yields Data
+dtr2016 <- read_csv('daily-treasury-rates-2016.csv')
+dtr2017 <- read_csv('daily-treasury-rates-2017.csv')
+dtr2018 <- read_csv('daily-treasury-rates-2018.csv')
+dtr2019 <- read_csv('daily-treasury-rates-2019.csv')
+dtr2020 <- read_csv('daily-treasury-rates-2020.csv')
+dtr2021 <- read_csv('daily-treasury-rates-2021.csv')
+dtr2022 <- read_csv('daily-treasury-rates-2022.csv')
+dtr2023 <- read_csv('daily-treasury-rates-2023.csv')
+dtr2024 <- read_csv('daily-treasury-rates-2024.csv')
+dtr2025 <- read_csv('daily-treasury-rates.csv')
+
+#S&P500 index data
+spx <- read_csv('US_SPX.csv')
+```
+
+## The Stock Market \- S&P500
+
+  We'll start simple by downloading the latest market data and using read_csv to load it in. Cleaning its typing, the data in particular is the S&P500, an index that measures the stock performance of the top 500 companies in the US, and accounts for 80% of the US market cap. 10 years of this market data is shown below.
+
+```{r S&P500, cache=TRUE, echo=FALSE, message=FALSE}
+spx |>
+  mutate(Date = mdy(Date)) |>
+  ggplot(aes(Date, `Close/Last`)) +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2020-03-01"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2022-02-20"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2025-01-20"), color = "blue", linetype = "dashed") +
+  labs(title = "S&P500 Index",
+       y = "Index",
+       x = "Date") +
+  theme_bw()
+```
+
+You'll notice three lines marked at February 2020, March 2022, and January 2025, each to mark historic recent events. You might also notice significant variable market pullbacks after each event occurs. Safe to say, we might interpret some connection here between market activity and widespread events. But what I wish to stress the most, is that stocks have always trended upwards, even in the worst of crisis. Whether it be the Federal Reserve's decisions, supply shocks, or trade policy, the stock market, against all odds, has gone up. As we'll see ahead, the Fed took extraordinary measures to combat pandemic slowdowns and red hot inflation using interest rates.
+
+
+## Interest Rates - Fed Funds and Yields
+
+  Pulling from the US treasury website, I downloaded yield data and used read_csv to load it in. I stitched the files together using bind_rows, and pivoted its columns into a longer format so to get individual rows for each term and date. Next, I joined the Fed Funds rate to the treasury rates by Date, and displayed the fed funds rate as a black line over colored yield curves.
+
+```{r Treasury Yields and Fed Funds Rates, echo=FALSE, message=FALSE}
+#Concatenate separate bond yield data sets by row
+daily_treasury_rates_t <- bind_rows(dtr2016, dtr2017, dtr2018, dtr2019, dtr2020, dtr2021, dtr2022, dtr2023, dtr2024, dtr2025) |>
+  select(!13:15) |>
+  mutate(Date = mdy(Date))
+
+#Pivot variable terms to single column
+treasury_rates <- daily_treasury_rates_t |>
+  pivot_longer(2:12, names_to = 'Term', values_to = 'Rate') |>
+  mutate(Term = factor(Term, levels = c('1 Mo', '3 Mo', '6 Mo', '1 Yr', '2 Yr', '3 Yr', '5 Yr', '7 Yr', '10 Yr', '20 Yr', '30 Yr')))
+
+#Join fed funds to treasury rates and fill missing data
+joined_rates <- treasury_rates |>
+  left_join(fed_funds, by = join_by(Date == observation_date)) |>
+  arrange(Date) |>
+  fill(FEDFUNDS, .direction = "down")
+
+#Save plot for faceted rates by term
+faceted_rates <- treasury_rates |>
+  ggplot(aes(Date, Rate, group = Term, color = Term)) +
+  geom_line() +
+  geom_vline(xintercept = as.Date('2020-03-01'), color = 'red', linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2022-02-20"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2025-01-20"), color = "blue", linetype = "dashed") +
+  facet_wrap(~ Term) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+
+#Save plot for all term rates on one graph
+all_on_one_rates <- joined_rates |>
+  ggplot(aes(x = Date)) +
+  geom_line(aes(y = Rate, color = Term)) +
+  geom_line(aes(y = FEDFUNDS), color = 'black', size = 0.5) +
+  geom_vline(xintercept = as.Date("2020-03-01"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2022-02-20"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2025-01-20"), color = "blue", linetype = "dashed") +
+  labs(title = "Treasury Rates by Term",
+       y = "Rate (%)",
+       x = "Date") +
+  theme_bw()
+
+all_on_one_rates 
+
+faceted_rates
+```
+
+When the pandemic happened, the Federal Reserve knew the implications to the economy when unemployment hit 15%. Immediately, rates were lowered, and measures were taken to keep the economy alive. While the market crashed March 2020, stocks were quick to rebound with renewed investor sentiment in the lower interest environment. Thus. the market soared until February 2022. And just to note the graph, the Fed Funds rate usually defines the baseline yield for the shortest term bonds, while greater terms seem to lag or lead depending on the economic environment.
+
+## Unemployment
+
+  To showcase unemployment, I requested data from the Bureau of Labor Statistics using their API calls and JSON file unpacking techniques. To do this, I had to install the government's API package to use its call. And to unpack the JSON file, I used the do.call and map functions to traverse and bind the data. Do.call was especially useful in this situation as I needed a single dataframe at the end, and not a list of dataframes like how map returns. Standard cleaning and tidying applied, I added a green line to signify 3% unemployment.
+
+```{r Unemployment, cache=TRUE, echo=FALSE, message=FALSE}
+#API call for seasonal unemployment
+payload2 <- list('seriesid' = c('LNS14000000'),
+                'startyear' = '2015',
+                'endyear' = '2025',
+                'registrationkey' = api_key)
+response2 <- blsAPI(payload2) 
+json2 <- fromJSON(response2)
+
+#Unpack, transpose, and save data
+temp_df2 <- do.call(bind_rows, map(json2$Results$series[[1]]$data, \(obs) {
+                      as.data.frame(t(obs), stringsAsFactors = FALSE)}))
+
+#Clean, standardize, and select
+unemployment <- temp_df2 |>
+  select(1,3,5) |>
+  unite('Date', year, periodName, sep = '-') |>
+  mutate(Date = ymd(paste0(Date, '-01')), value = as.numeric(value))
+
+#unemployment plot
+unemployment_plot <- unemployment |>
+  ggplot(aes(x = Date, y = value)) +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2020-03-01"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2022-02-20"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2025-01-20"), color = "blue", linetype = "dashed") +
+  geom_hline(yintercept = 3,  color = "green", linetype = "dashed") +
+  labs(title = "Unemployment Rate over Time",
+       y = "Unemployment Rate (%)",
+       x = "Date") +
+  scale_x_date(breaks = seq(as.Date("2000-01-01"), as.Date("2025-03-01"), by = "1 year"),
+               limits = c(as.Date('2015-12-01'), as.Date('2025-4-01'))) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+unemployment_plot
+```
+
+Seeing clearly here, unemployment has been low since the start of the Ukraine war.
+
+## Inflation
+
+  Scraping the data off a URL website, I cleaned the inflation data by renaming columns, preserving/re-adding incomplete rows, and pivoting it into a longer format to proper display. Cleaning for data types, I added a green horizontal line to show the Federal Reserve's 2% target.
+
+```{r Inflation, echo=FALSE, message=FALSE}
+#Read webpage
+url <- "https://www.usinflationcalculator.com/inflation/current-inflation-rates/"
+page <- read_html(url)
+
+#Extract all tables
+tables <- html_table(page, fill = TRUE)
+
+#Access individual table
+inflation_dirty <- tables[[1]]
+
+#Semi clean data
+inflation_semi_clean <- inflation_dirty |>
+  rename('Year' = X1, 'Jan' = X2, 'Feb' = X3, 'Mar' = X4, 'Apr' = X5, 'May' = X6, 'Jun' = X7, 'Jul' = X8,
+         'Aug' = X9, 'Sep' = X10, 'Oct' = X11, 'Nov' = X12, 'Dec' = X13) |>
+  select(-X14) |>
+  slice(-1)
+
+#Take out unfinished row and clean
+temp_infl <- inflation_semi_clean[1,] |>
+  select(1:4) |>
+  pivot_longer(2:4, names_to = 'Month', values_to = 'inflation_rate') |>
+  mutate(inflation_rate = as.numeric(inflation_rate))
+
+#Pivot semi cleaned data to longer format, condensing month columns
+inflation_longer <- inflation_semi_clean |>
+  slice(-1) |>
+  pivot_longer(2:13, names_to = 'Month', values_to = 'inflation_rate') |>
+  mutate(inflation_rate = as.numeric(inflation_rate))
+
+#Finish by binding temp row back into data and condensing month and year
+inflation_rates <- bind_rows(temp_infl, inflation_longer) |>
+  unite('Date', Year, Month, sep = '-') |>
+  mutate(Date = ymd(paste0(Date, '-01')))
+  
+
+#Save plot for inflation rates starting from year 2016
+inflation_plot <- inflation_rates |>
+  ggplot(aes(x = Date, y = inflation_rate)) +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2020-03-01"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2022-02-20"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2025-01-20"), color = "blue", linetype = "dashed") +
+  geom_hline(yintercept = 2,  color = "green", linetype = "dashed") +
+  labs(title = "Inflation Rates over Time",
+       y = "Inflation Rate (%)",
+       x = "Date") +
+  scale_x_date(breaks = seq(as.Date("2000-01-01"), as.Date("2025-03-01"), by = "1 year"),
+               limits = c(as.Date('2000-12-01'), as.Date('2025-4-01'))) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+inflation_plot
+```
+
+Immediately you can notice that first, inflation is typically kept to its 2% target, and that second, significant events indeed have measurable impact on inflation, most notably the 2008 Financial crisis and Covid-19 pandemic. Once Covid shutdowns began, we saw an immediate deflationary effect in response to the supply shocks, only for it to rise up to 7.5% inflation by June 2022. This, and other macro indicators, ultimately led to the Fed's decision to begin raising interest rates.
+
+## CPI Urban and Eggs
+
+  When talking about inflation, we have to remember that it represents a change in prices, and has many different ways to be measured. The CPI Urban measures the average prices of all goods (including Food and Energy) from every major US City, without seasonal adjustment. It's generally used to decide economic policy and contract price adjustments. Calling and unpacking it from the BLS' API, along with some basic cleaning and standardizing, I plotted it below.
+
+```{r CPI Urban, cache=TRUE, echo=FALSE, message=FALSE}
+#The CPIU is a measure that includes all consumer includes. This dataset is not seasonally adjusted.
+
+#API call for CPI U
+payload4 <- list('seriesid' = c('CUUR0000SA0'),
+                'startyear' = '2005',
+                'endyear' = '2025',
+                'registrationkey' = api_key)
+response4 <- blsAPI(payload4) 
+json4 <- fromJSON(response4)
+
+#Unpack and clean
+temp_df4 <- do.call(bind_rows, map(json4$Results$series[[1]]$data, \(obs) {
+                      as.data.frame(t(obs), stringsAsFactors = FALSE)}))
+
+cpiu <- temp_df4 |>
+  select(1,3,4) |>
+  unite('Date', year, periodName, sep = '-') |>
+  mutate(Date = ymd(paste0(Date, '-01')), value = as.numeric(value))
+
+#cpiu plot
+cpiu_plot <- cpiu |>
+  ggplot(aes(x = Date, y = value)) +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2020-03-01"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2022-02-20"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2025-01-20"), color = "blue", linetype = "dashed") +
+  labs(title = "The Consumer Price Index for All Urban Consumers (CPI-U)",
+       subtitle = "Base Period:	1982-84=100",
+       y = "Index",
+       x = "Date") +
+  scale_x_date(breaks = seq(as.Date("2000-01-01"), as.Date("2025-03-01"), by = "1 year"),
+               limits = c(as.Date('2005-01-01'), as.Date('2025-4-01'))) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cpiu_plot
+```
+
+As you can see, everyday prices have steadily risen over the past 20 years, before rapidly accelerating under COVID and the Fed's interest hikes. Also note that even though inflation has cooled since the onset the Ukraine war, prices on average are still at all-time highs.
+
+```{r CPI Eggs, cache=TRUE, echo=FALSE, message=FALSE}
+#API call for CPI of Eggs
+payload3 <- list('seriesid' = c('APU0000708111'),
+                'startyear' = '2015',
+                'endyear' = '2025',
+                'registrationkey' = api_key)
+response3 <- blsAPI(payload3) 
+json3 <- fromJSON(response3)
+
+#Unpack and clean
+temp_df3 <- do.call(bind_rows, map(json3$Results$series[[1]]$data, \(obs) {
+                      as.data.frame(t(obs), stringsAsFactors = FALSE)}))
+
+cpi_eggs <- temp_df3 |>
+  select(1,3,5) |>
+  unite('Date', year, periodName, sep = '-') |>
+  mutate(Date = ymd(paste0(Date, '-01')), value = as.numeric(value))
+
+#eggs cpi plot
+cpi_eggs_plot <- cpi_eggs |>
+  ggplot(aes(x = Date, y = value)) +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2020-03-01"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2022-02-20"), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = as.Date("2025-01-20"), color = "blue", linetype = "dashed") +
+  labs(title = "Eggs CPI over Time",
+       y = "Index",
+       x = "Date") +
+  scale_x_date(breaks = seq(as.Date("2000-01-01"), as.Date("2025-03-01"), by = "1 year"),
+               limits = c(as.Date('2015-12-01'), as.Date('2025-4-01'))) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cpi_eggs_plot
+
+```
+
+And of course, no talk about prices is complete without looking at eggs. In the same way I wrangled CPIU data, I also called and unpacked the Eggs CPI. Cleaning and tidying it, I show the price index above. As I've outlined in other charts, egg prices reached all-time highs during the start of the Ukraine war and started coming down once the Fed pivoted. Afterwards, prices only briefly cooled momentarily before reaching new all-time highs at the beginning of 2025.
+
+```{r States Lookup table, echo=FALSE, message=FALSE}
+state_lookup <- list(
+  '01' = 'Alabama',
+  '02' = 'Alaska',
+  '04' = 'Arizona',
+  '05' = 'Arkansas',
+  '06' = 'California',
+  '08' = 'Colorado',
+  '09' = 'Conneticut',
+  '10' = 'Delaware',
+  '11' = 'District of Columbia',
+  '12' = 'Florida',
+  '13' = 'Georgia',
+  '15' = 'Hawaii',
+  '16' = 'Idaho',
+  '17' = 'Illinois',
+  '18' = 'Indiana',
+  '19' = 'Iowa',
+  '20' = 'Kansas',
+  '21' = 'Kentucky',
+  '22' = 'Louisiana',
+  '23' = 'Maine',
+  '24' = 'Maryland',
+  '25' = 'Massachussets',
+  '26' = 'Michigan',
+  '27' = 'Minnesota',
+  '28' = 'Mississippi',
+  '29' = 'Missouri',
+  '30' = 'Montana',
+  '31' = 'Nebraska',
+  '32' = 'Nevada',
+  '33' = 'New Hampshire',
+  '34' = 'New Jersey',
+  '35' = 'New Mexico',
+  '36' = 'New York',
+  '37' = 'North Carolina',
+  '38' = 'North Dakota',
+  '39' = 'Ohio',
+  '40' = 'Ohklahoma',
+  '41' = 'Oregon',
+  '42' = 'Pennsylvania',
+  '44' = 'Rhode Island',
+  '45' = 'South Carolina',
+  '46' = 'South Dakota',
+  '47' = 'Tennessee',
+  '48' = 'Texas',
+  '49' = 'Utah',
+  '50' = 'Vermont',
+  '51' = 'Virginia',
+  '53' = 'Washington',
+  '54' = 'West Virginia',
+  '55' = 'Wisconsin',
+  '56' = 'Wyoming',
+  '72' = 'Puerto Rico',
+  '78' = 'Virgin Islands')
+```
+
+## State Employments
+
+  And finally, to round out this project, I wanted to show how employment varies from state to state and how they reacted during these past 10 years. We've already seen this data, the added bonus here however is we get to see these update values in real time. As far as the data handling goes, this was the most challenging data set to work with as I needed to unpack multiple series of state ID's from the API call. This made it so one more level of unpacking was required as I needed to traverse through lists of lists. So to do this, I simply added another layer of do.call map functions to traverse these inner lists, and labeled each row with a state.
+```{r Employment, cache=TRUE, echo=FALSE, message=FALSE}
+#Employment (in thousands)for all 50 states from bls API
+payload <- list('seriesid' = c('SMS01000000000000001', 'SMS02000000000000001', 'SMS04000000000000001', 'SMS05000000000000001', 'SMS06000000000000001', 'SMS08000000000000001', 'SMS09000000000000001', 'SMS10000000000000001', 'SMS11000000000000001',           'SMS12000000000000001', 'SMS13000000000000001', 'SMS15000000000000001',                     'SMS16000000000000001', 'SMS17000000000000001', 'SMS18000000000000001',   'SMS19000000000000001', 'SMS20000000000000001', 'SMS21000000000000001',               'SMS22000000000000001', 'SMS23000000000000001', 'SMS24000000000000001',                  'SMS25000000000000001', 'SMS26000000000000001', 'SMS27000000000000001',                  'SMS28000000000000001', 'SMS29000000000000001', 'SMS30000000000000001',     'SMS31000000000000001', 'SMS32000000000000001', 'SMS33000000000000001',   'SMS34000000000000001', 'SMS35000000000000001', 'SMS36000000000000001',               'SMS37000000000000001', 'SMS38000000000000001', 'SMS39000000000000001',             'SMS40000000000000001', 'SMS41000000000000001', 'SMS42000000000000001',           'SMS44000000000000001', 'SMS45000000000000001', 'SMS46000000000000001',             'SMS47000000000000001', 'SMS48000000000000001', 'SMS49000000000000001',           'SMS50000000000000001', 'SMS51000000000000001', 'SMS53000000000000001',                       'SMS54000000000000001', 'SMS55000000000000001', 'SMS56000000000000001',                      'SMS72000000000000001', 'SMS78000000000000001'),
+                'startyear' = '2015',
+                'endyear' = '2025',
+                'registrationkey' = api_key)
+
+response <- blsAPI(payload) 
+json <- fromJSON(response) 
+
+#Code to traverse list and bind data from JSON object
+temp_df <- do.call(bind_rows, map(json$Results$series, \(series_item) {
+  
+                    state_code <-substr(series_item$seriesID, 4, 5)
+                    
+                    state_label <- state_lookup[[state_code]]
+                    
+                    do.call(bind_rows, map(series_item$data, \(obs) {
+                      as.data.frame(t(append(obs, list('state' = state_label))),
+                                    stringsAsFactors = FALSE)}))
+                    }))
+
+#Filter, clean, and group employment data
+us_employment <- temp_df |>
+  filter(!(state %in% c('Puerto Rico', 'Alaska', 'Hawaii', 'Virgin Islands'))) |>
+  select(1,3,5,7) |>
+  unite('Date', year, periodName, sep = '-') |>
+  mutate(Date = ymd(paste0(Date, '-01')), value = as.numeric(value), state = factor(as.character(state)),
+         Year = year(Date)) |>
+  group_by(Year, state) |>
+  summarise(avg_yrly_employment = mean(value))
+
+#Save employment data in tidy format for project
+write_csv(us_employment, "summarised_tidy_employment.csv")
+
+#Get us state data from tigris package and join to employment
+us_states_shapes <- tigris::states(class ='sf', cb = TRUE, progress_bar = FALSE)
+
+employment_us_shapes <- us_employment |>
+  inner_join(us_states_shapes, by = join_by(state == NAME)) |>
+  sf::st_as_sf()
+
+#Yearly Avg employment plotted by state, transitioned by year
+employment_us_shapes |>
+  ggplot(aes(fill = avg_yrly_employment, ids = Year)) +
+  geom_sf(colour = NA) +
+  scale_fill_viridis_c(option = "viridis") +
+  labs(fill = "Employment (in thousands)") +
+  ggtitle("Employment by State") +
+  coord_sf(datum = NA, crs = 5070) +
+  transition_states(Year) +
+  labs(subtitle = "Year: {closest_state}")
+
+#Boxplots of most employed states in 2025
+us_employment |>
+  filter(Year == 2025) |>
+  arrange(desc(avg_yrly_employment)) |>
+  slice_head(n = 25) |>
+  mutate(state = fct_reorder(state, avg_yrly_employment, .desc = TRUE)) |>
+  ggplot(aes(state, avg_yrly_employment, color = state)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(title = '2025 Top 25 States: Average Employment',
+       x = '',
+       y = 'Average 2025 Employment (in thousands)') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+From the BLS data, we can see that some states are under reported, while others hold the lion's share of US Employment. Unsurprisingly, in 2025, California, Texas, Florida, New York, and Pennsylvania all, on average, hold the most employment out of all US states. If I had to point out one reason why, I would have to say it's because of their sheer population sizes.
+
+## Conclusion
+
+  Throughout this project, I've touched on some of the leading economic indicators the Federal Reserve uses to guide its decision-making. Examining inflation, unemployment, and interest rates, we saw how they might interact and precipitate the stock market. So, in conclusion, there are critical indicators in data that can guide the economy. Through various R techniques, I hope I've done an adequate job of data wrangling and visualization!
+
+## Appendix: 
+  
+  To make the most out of this project, I had ChatGPT assist me with list traversals and JSON unpacking. Using AI, I was able to ask specific questions about lists, lapply, and do.call, to quickly learning what it was I needed to do. And while useful in providing fast information, I still worked to better my understanding and create solutions to my issues. Aside from that, AI assistance kept to troubleshooting.
+
+## Data Sources:
+-<https://www.nasdaq.com/market-activity/index/spx/historical?page=1&rows_per_page=10&timeline=y10>
+
+-<https://www.usinflationcalculator.com/inflation/current-inflation-rates/>
+
+-<https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025> -<https://www.bls.gov/cps/>
+
+-<https://fred.stlouisfed.org/series/FEDFUNDS>

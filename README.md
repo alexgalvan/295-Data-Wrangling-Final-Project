@@ -4,7 +4,7 @@ Author: Alexander Galvan
 
 Date: May 2025
 
-Tools: R (tidyverse, ggplot2, gganimate, etc)
+Tools: R (tidyverse, ggplot2, rvest, rjson, etc)
 
 **<br>Project Overview**
 

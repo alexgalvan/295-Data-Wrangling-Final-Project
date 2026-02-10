@@ -441,7 +441,7 @@ From the BLS data, we can see that some states are under reported, while others 
 
 ## Appendix: 
   
-  To make the most out of this project, I had ChatGPT assist me with list traversals and JSON unpacking. Using AI, I was able to ask specific questions about lists, lapply, and do.call, to quickly learning what it was I needed to do. And while useful in providing fast information, I still worked to better my understanding and create solutions to my issues. Aside from that, AI assistance was kept to troubleshooting.
+  To make the most out of this project, I had ChatGPT assist me with list traversals and JSON unpacking. Using AI, I was able to ask specific questions about lists, map, and do.call, to quickly learning what it was I needed to do. And while useful in providing fast information, I still worked to better my understanding and create solutions to my issues. Aside from that, AI assistance was kept to troubleshooting.
 
 ## Data Sources:
 -<https://www.nasdaq.com/market-activity/index/spx/historical?page=1&rows_per_page=10&timeline=y10>
@@ -451,3 +451,4 @@ From the BLS data, we can see that some states are under reported, while others 
 -<https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025> -<https://www.bls.gov/cps/>
 
 -<https://fred.stlouisfed.org/series/FEDFUNDS>
+

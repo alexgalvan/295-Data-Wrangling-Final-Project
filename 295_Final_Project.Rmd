@@ -3,8 +3,8 @@ title: "295 Data Wrangling Final Project"
 author: "Alexander Galvan"
 date: "2025-05-09"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 
@@ -16,7 +16,16 @@ output:
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 library(tidyverse)
 library(rvest)
-library(blsAPI) #install_github("mikeasilva/blsAPI")
+library(tinytex) #tinytex::install_tinytex() #Needed for PDF output
+library(blsAPI) #library(devtools) install_github('mikeasilva/blsAPI')
+
+#Token generation needed before you can access mikeasilva's blsAPI repo
+#install.packages("gitcreds")
+#library(gitcreds)
+
+#This will prompt you to enter your new token
+#gitcreds_set()
+
 library(rjson)
 library(gganimate)
 library(viridis)
@@ -134,7 +143,7 @@ temp_df2 <- do.call(bind_rows, map(json2$Results$series[[1]]$data, \(obs) {
 
 #Clean, standardize, and select
 unemployment <- temp_df2 |>
-  select(1,3,5) |>
+  select(1,3,4) |>
   unite('Date', year, periodName, sep = '-') |>
   mutate(Date = ymd(paste0(Date, '-01')), value = as.numeric(value))
 
@@ -279,7 +288,7 @@ temp_df3 <- do.call(bind_rows, map(json3$Results$series[[1]]$data, \(obs) {
                       as.data.frame(t(obs), stringsAsFactors = FALSE)}))
 
 cpi_eggs <- temp_df3 |>
-  select(1,3,5) |>
+  select(1,3,4) |>
   unite('Date', year, periodName, sep = '-') |>
   mutate(Date = ymd(paste0(Date, '-01')), value = as.numeric(value))
 
@@ -366,7 +375,7 @@ state_lookup <- list(
   And finally, to round out this project, I wanted to show how employment varies from state to state and how they reacted during these past 10 years. We've already seen this data, the added bonus here however is we get to see these update values in real time. As far as the data handling goes, this was the most challenging data set to work with as I needed to unpack multiple series of state ID's from the API call. This made it so one more level of unpacking was required as I needed to traverse through lists of lists. So to do this, I simply added another layer of do.call map functions to traverse these inner lists, and labeled each row with a state.
 ```{r Employment, cache=TRUE, echo=FALSE, message=FALSE}
 #Employment (in thousands)for all 50 states from bls API
-payload <- list('seriesid' = c('SMS01000000000000001', 'SMS02000000000000001', 'SMS04000000000000001', 'SMS05000000000000001', 'SMS06000000000000001', 'SMS08000000000000001', 'SMS09000000000000001', 'SMS10000000000000001', 'SMS11000000000000001', 'SMS12000000000000001', 'SMS13000000000000001', 'SMS15000000000000001', 'SMS16000000000000001', 'SMS17000000000000001', 'SMS18000000000000001', 'SMS19000000000000001', 'SMS20000000000000001', 'SMS21000000000000001', 'SMS22000000000000001', 'SMS23000000000000001', 'SMS24000000000000001', 'SMS25000000000000001', 'SMS26000000000000001', 'SMS27000000000000001',                  'SMS28000000000000001', 'SMS29000000000000001', 'SMS30000000000000001',     'SMS31000000000000001', 'SMS32000000000000001', 'SMS33000000000000001',   'SMS34000000000000001', 'SMS35000000000000001', 'SMS36000000000000001',               'SMS37000000000000001', 'SMS38000000000000001', 'SMS39000000000000001', 'SMS40000000000000001', 'SMS41000000000000001', 'SMS42000000000000001', 'SMS44000000000000001', 'SMS45000000000000001', 'SMS46000000000000001', 'SMS47000000000000001', 'SMS48000000000000001', 'SMS49000000000000001', 'SMS50000000000000001', 'SMS51000000000000001', 'SMS53000000000000001', 'SMS54000000000000001', 'SMS55000000000000001', 'SMS56000000000000001',  'SMS72000000000000001', 'SMS78000000000000001'),
+payload <- list('seriesid' = c('SMS01000000000000001','SMS02000000000000001','SMS04000000000000001', 'SMS05000000000000001', 'SMS06000000000000001', 'SMS08000000000000001', 'SMS09000000000000001', 'SMS10000000000000001', 'SMS11000000000000001', 'SMS12000000000000001', 'SMS13000000000000001', 'SMS15000000000000001', 'SMS16000000000000001', 'SMS17000000000000001', 'SMS18000000000000001', 'SMS19000000000000001', 'SMS20000000000000001', 'SMS21000000000000001', 'SMS22000000000000001', 'SMS23000000000000001', 'SMS24000000000000001', 'SMS25000000000000001', 'SMS26000000000000001', 'SMS27000000000000001', 'SMS28000000000000001', 'SMS29000000000000001', 'SMS30000000000000001', 'SMS31000000000000001', 'SMS32000000000000001', 'SMS33000000000000001', 'SMS34000000000000001', 'SMS35000000000000001', 'SMS36000000000000001', 'SMS37000000000000001', 'SMS38000000000000001', 'SMS39000000000000001', 'SMS40000000000000001', 'SMS41000000000000001', 'SMS42000000000000001',  'SMS44000000000000001', 'SMS45000000000000001', 'SMS46000000000000001', 'SMS47000000000000001', 'SMS48000000000000001', 'SMS49000000000000001', 'SMS50000000000000001', 'SMS51000000000000001', 'SMS53000000000000001', 'SMS54000000000000001', 'SMS55000000000000001', 'SMS56000000000000001',  'SMS72000000000000001', 'SMS78000000000000001'),
                 'startyear' = '2015',
                 'endyear' = '2025',
                 'registrationkey' = api_key)
@@ -451,4 +460,3 @@ From the BLS data, we can see that some states are under reported, while others 
 -<https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025> -<https://www.bls.gov/cps/>
 
 -<https://fred.stlouisfed.org/series/FEDFUNDS>
-

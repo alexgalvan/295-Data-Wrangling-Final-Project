@@ -60,3 +60,5 @@ The project utilizes a mix of static files, API calls, and web scraping:
     library(tigris)
     
 Note: This project was developed with troubleshooting assistance from ChatGPT for complex list traversals and JSON unpacking.
+
+**IMPORTANT**: The blsAPI library used is credited to Mike A. Silva at https://github.com/mikeasilva/blsAPI. It should be noted that you'll need an updated classic token from GitHub, along with dependencies, to use gitcreds_set() to set your token and access the repository through install_github('mikeasilva/blsAPI') without issue. If you encounter any issues running the code, ensure that you have a valid BLS API key and all installed libraries.
